@@ -1,0 +1,18 @@
+# FastRenamer Requirements
+# This file lists the dependencies for the FastRenamer application
+
+# Python built-in libraries (included with standard Python distributions)
+# tkinter - GUI framework for the application interface
+# os - Operating system interface for file operations
+# pathlib - Object-oriented filesystem paths
+# messagebox - Dialog boxes for user feedback
+
+# Note: This application primarily uses Python's built-in standard library.
+# Tkinter is included with most Python installations, but if you encounter
+# import errors for tkinter, you may need to install it separately:
+# 
+# On Ubuntu/Debian: sudo apt-get install python3-tk
+# On CentOS/RHEL: sudo yum install tkinter
+# On macOS with Homebrew: brew install python-tk
+# 
+# No additional pip packages are required for basic functionality.
