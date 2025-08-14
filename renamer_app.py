@@ -1,15 +1,19 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
+from pathlib import Path
+from name_sanitizer import FilenameSanitizer
+from content_extractors import ContentExtractorManager
 
 class RenamerApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Renomeador de Arquivos em Lote")
-        self.geometry("800x600")
+        self.geometry("800x650") # Aumentar altura para novas opções
 
         self.directory = ""
         self.files = []
+        self.extractor_manager = ContentExtractorManager()
 
         # --- Layout ---
         self.grid_columnconfigure(0, weight=1)
@@ -34,9 +38,8 @@ class RenamerApp(tk.Tk):
         main_frame = ttk.Frame(self, padding="10")
         main_frame.grid(row=1, column=0, sticky="nsew")
         main_frame.grid_columnconfigure(0, weight=1)
-        main_frame.grid_columnconfigure(1, weight=0, minsize=250)
+        main_frame.grid_columnconfigure(1, weight=0, minsize=300) # Aumentar minsize
         main_frame.grid_rowconfigure(0, weight=1)
-
 
         # Lista de arquivos
         files_frame = ttk.Labelframe(main_frame, text="Arquivos", padding="10")
@@ -57,22 +60,51 @@ class RenamerApp(tk.Tk):
         ttk.Button(selection_buttons_frame, text="Selecionar Todos", command=self.select_all).pack(side="left", padx=(0,5))
         ttk.Button(selection_buttons_frame, text="Desmarcar Todos", command=self.deselect_all).pack(side="left")
 
+        # --- Coluna de Opções ---
+        options_column_frame = ttk.Frame(main_frame)
+        options_column_frame.grid(row=0, column=1, sticky="ns")
 
         # Opções de Renomeação
-        options_frame = ttk.Labelframe(main_frame, text="Opções de Renomeação", padding="10")
-        options_frame.grid(row=0, column=1, sticky="ns")
+        rename_options_frame = ttk.Labelframe(options_column_frame, text="Opções de Renomeação", padding="10")
+        rename_options_frame.pack(fill="x", expand=False, pady=(0, 10))
 
         self.rename_option = tk.StringVar(value="sequential")
 
-        ttk.Radiobutton(options_frame, text="Nome Sequencial", variable=self.rename_option, value="sequential", command=self.create_option_widgets).pack(anchor="w")
-        ttk.Radiobutton(options_frame, text="Adicionar Prefixo/Sufixo", variable=self.rename_option, value="add_text", command=self.create_option_widgets).pack(anchor="w")
-        ttk.Radiobutton(options_frame, text="Substituir Texto", variable=self.rename_option, value="replace", command=self.create_option_widgets).pack(anchor="w")
-        ttk.Radiobutton(options_frame, text="Nome da Pasta + Sequencial", variable=self.rename_option, value="folder_name_seq", command=self.create_option_widgets).pack(anchor="w")
+        ttk.Radiobutton(rename_options_frame, text="Nome Sequencial", variable=self.rename_option, value="sequential", command=self.create_option_widgets).pack(anchor="w")
+        ttk.Radiobutton(rename_options_frame, text="Adicionar Prefixo/Sufixo", variable=self.rename_option, value="add_text", command=self.create_option_widgets).pack(anchor="w")
+        ttk.Radiobutton(rename_options_frame, text="Substituir Texto", variable=self.rename_option, value="replace", command=self.create_option_widgets).pack(anchor="w")
+        ttk.Radiobutton(rename_options_frame, text="Nome da Pasta + Sequencial", variable=self.rename_option, value="folder_name_seq", command=self.create_option_widgets).pack(anchor="w")
+        ttk.Radiobutton(rename_options_frame, text="Extrair do Conteúdo", variable=self.rename_option, value="extract_content", command=self.create_option_widgets).pack(anchor="w")
 
         # --- Frame para inputs das opções ---
-        self.option_inputs_frame = ttk.Frame(options_frame, padding="10")
+        self.option_inputs_frame = ttk.Frame(rename_options_frame, padding="5 10 5 5")
         self.option_inputs_frame.pack(fill="x", expand=True)
-        self.create_option_widgets()
+
+        # --- Opções de Sanitização ---
+        sanitize_options_frame = ttk.Labelframe(options_column_frame, text="Opções de Finalização", padding="10")
+        sanitize_options_frame.pack(fill="x", expand=False)
+
+        # Case style
+        self.case_style_var = tk.StringVar(value="Nenhum")
+        ttk.Label(sanitize_options_frame, text="Caixa do Texto:").pack(anchor="w")
+        self.case_style_combo = ttk.Combobox(
+            sanitize_options_frame,
+            textvariable=self.case_style_var,
+            values=["Nenhum", "minúsculas", "MAIÚSCULAS", "Título", "Sentença"],
+            state="readonly"
+        )
+        self.case_style_combo.pack(fill="x", pady=(0, 5))
+
+        # Replace spaces
+        self.replace_spaces_var = tk.BooleanVar(value=False)
+        self.replace_spaces_check = ttk.Checkbutton(
+            sanitize_options_frame,
+            text="Substituir espaços por '_'",
+            variable=self.replace_spaces_var
+        )
+        self.replace_spaces_check.pack(anchor="w")
+
+        self.create_option_widgets() # Chamar para criar os widgets da opção default
 
         # Botão de Renomear
         rename_button = ttk.Button(self, text="Renomear Arquivos Selecionados", command=self.rename_files, style="Accent.TButton")
@@ -81,7 +113,6 @@ class RenamerApp(tk.Tk):
         # Estilo
         style = ttk.Style(self)
         style.configure("Accent.TButton", foreground="white", background="blue")
-
 
     def create_option_widgets(self):
         # Limpa widgets antigos
@@ -109,6 +140,18 @@ class RenamerApp(tk.Tk):
             ttk.Label(self.option_inputs_frame, text="Substituir por:").pack(anchor="w")
             self.replace_entry = ttk.Entry(self.option_inputs_frame)
             self.replace_entry.pack(fill="x")
+        elif option == "extract_content":
+            ttk.Label(self.option_inputs_frame, text="Extrai o nome do conteúdo do arquivo.").pack(anchor="w")
+
+            supported_exts = self.extractor_manager.get_supported_extensions()
+            ext_str = ", ".join(sorted(list(supported_exts)))
+            ttk.Label(self.option_inputs_frame, text=f"Suportado: {ext_str}", wraplength=250).pack(anchor="w", pady=(5,5))
+
+            ttk.Label(self.option_inputs_frame, text="Padrão Regex (Opcional):").pack(anchor="w")
+            self.regex_entry = ttk.Entry(self.option_inputs_frame)
+            self.regex_entry.pack(fill="x")
+            ttk.Label(self.option_inputs_frame, text="Usa o 1º grupo de captura do regex.").pack(anchor="w")
+
 
     def select_folder(self):
         """Abre o diálogo para selecionar uma pasta e atualiza a lista de arquivos."""
@@ -151,44 +194,79 @@ class RenamerApp(tk.Tk):
         renamed_count = 0
         errors = []
 
-        # Confirmação
         if not messagebox.askyesno("Confirmar Renomeação", f"Você tem certeza que deseja renomear {len(selected_files)} arquivo(s)?"):
             return
+
+        # Configurar o sanitizador com base nas opções da UI
+        case_map = {
+            "Nenhum": None,
+            "minúsculas": "lower",
+            "MAIÚSCULAS": "upper",
+            "Título": "title",
+            "Sentença": "sentence"
+        }
+        case_style = case_map.get(self.case_style_var.get())
+
+        sanitizer = FilenameSanitizer(
+            replace_spaces=self.replace_spaces_var.get(),
+            case_style=case_style,
+            conflict_resolution=True
+        )
 
         for i, filename in enumerate(selected_files):
             try:
                 old_path = os.path.join(self.directory, filename)
                 name, ext = os.path.splitext(filename)
-                new_name = ""
+                proposed_new_name = ""
 
                 if option == "sequential":
                     base_name = self.base_name_entry.get()
-                    new_name = f"{base_name}{i+1:03d}{ext}"
+                    proposed_new_name = f"{base_name}{i+1:03d}{ext}"
                 elif option == "add_text":
                     prefix = self.prefix_entry.get()
                     suffix = self.suffix_entry.get()
-                    new_name = f"{prefix}{name}{suffix}{ext}"
+                    proposed_new_name = f"{prefix}{name}{suffix}{ext}"
                 elif option == "replace":
                     find_text = self.find_entry.get()
                     replace_text = self.replace_entry.get()
                     if find_text:
-                        new_name = name.replace(find_text, replace_text) + ext
+                        proposed_new_name = name.replace(find_text, replace_text) + ext
                     else:
-                        new_name = filename # Pula se "Encontrar" estiver vazio
+                        proposed_new_name = filename
                 elif option == "folder_name_seq":
                     folder_name = os.path.basename(self.directory)
-                    new_name = f"{folder_name}_{i+1:03d}{ext}"
+                    proposed_new_name = f"{folder_name}_{i+1:03d}{ext}"
+                elif option == "extract_content":
+                    file_path = Path(self.directory) / filename
+                    regex_pattern = self.regex_entry.get()
 
-                if new_name and new_name != filename:
-                    new_path = os.path.join(self.directory, new_name)
-                    if os.path.exists(new_path):
-                         errors.append(f"'{filename}' -> '{new_name}': Arquivo de destino já existe.")
-                         continue
+                    extractor_kwargs = {}
+                    if regex_pattern:
+                        extractor_kwargs['regex_pattern'] = regex_pattern
+
+                    extracted_text = self.extractor_manager.extract_content(file_path, **extractor_kwargs)
+
+                    if extracted_text:
+                        proposed_new_name = f"{extracted_text}{ext}"
+                    else:
+                        errors.append(f"'{filename}': Não foi possível extrair conteúdo.")
+                        continue # Pula para o próximo arquivo
+
+                if not proposed_new_name or proposed_new_name == filename:
+                    # Nenhum nome novo foi gerado ou o nome é o mesmo.
+                    # Podemos adicionar uma nota se quisermos, mas por enquanto pulamos.
+                    continue
+
+                # Sanitizar e resolver conflitos
+                final_new_name = sanitizer.sanitize(proposed_new_name, directory=Path(self.directory))
+
+                if final_new_name != filename:
+                    new_path = os.path.join(self.directory, final_new_name)
                     os.rename(old_path, new_path)
                     renamed_count += 1
                 else:
-                    errors.append(f"'{filename}': Nenhum nome novo gerado (verifique as opções).")
-
+                    # O nome final sanitizado é o mesmo que o original
+                    errors.append(f"'{filename}': O nome gerado ('{proposed_new_name}') resultou no nome original após a finalização.")
 
             except Exception as e:
                 errors.append(f"Erro ao renomear '{filename}': {e}")
@@ -202,8 +280,7 @@ class RenamerApp(tk.Tk):
         else:
             messagebox.showinfo("Sucesso", message)
 
-        self.load_files() # Recarrega a lista de arquivos
-
+        self.load_files()
 
 if __name__ == "__main__":
     app = RenamerApp()
