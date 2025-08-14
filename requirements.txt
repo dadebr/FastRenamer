@@ -7,12 +7,19 @@
 # pathlib - Object-oriented filesystem paths
 # messagebox - Dialog boxes for user feedback
 
-# Note: This application primarily uses Python's built-in standard library.
+# Third-party packages (install with pip)
+
+# Content extraction dependencies
+pypdf>=3.0.0          # PDF text extraction
+Pillow>=9.0.0          # Image processing and EXIF reading
+chardet>=5.0.0         # Text encoding detection
+
+# Note: This application uses Python's built-in standard library for basic functionality.
 # Tkinter is included with most Python installations, but if you encounter
 # import errors for tkinter, you may need to install it separately:
-# 
+#
 # On Ubuntu/Debian: sudo apt-get install python3-tk
 # On CentOS/RHEL: sudo yum install tkinter
 # On macOS with Homebrew: brew install python-tk
-# 
-# No additional pip packages are required for basic functionality.
+#
+# Install all dependencies with: pip install -r requirements.txt
