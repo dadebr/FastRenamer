@@ -252,9 +252,8 @@ class RenamerApp(tk.Tk):
                         errors.append(f"'{filename}': Não foi possível extrair conteúdo.")
                         continue # Pula para o próximo arquivo
 
-                if not proposed_new_name or proposed_new_name == filename:
-                    # Nenhum nome novo foi gerado ou o nome é o mesmo.
-                    # Podemos adicionar uma nota se quisermos, mas por enquanto pulamos.
+                if not proposed_new_name:
+                    # Nenhum nome novo foi gerado, pular para o próximo.
                     continue
 
                 # Sanitizar e resolver conflitos
